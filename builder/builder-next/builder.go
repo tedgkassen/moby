@@ -587,7 +587,39 @@ func toBuildkitPruneInfo(opts types.BuildCachePruneOptions) (client.PruneInfo, e
 		// nothing to do
 	case 1:
 		var err error
-		until, err = time.ParseDuration(untilValues[0])
+		//Try Duration format
+		untilRaw := untilValues[0]
+		until, err = time.ParseDuration(untilRaw)
+
+		//Try Epoch seconds
+		if err != nil {
+			var epochSecs int64
+			epochSecs, err = strconv.ParseInt(untilRaw, 10, 64)
+			if err == nil {
+				until = time.Until(time.Unix(epochSecs, 0))
+			}
+		}
+
+		//Try date formatted string
+		if err != nil {
+			supportedLayouts := []string{
+				time.RFC3339,
+				time.RFC3339Nano,
+				"2006-01-02T15:04:05",
+				"2006-01-02T15:04:05.999999999",
+				"2006-01-02Z07:00",
+				"2006-01-02",
+			}
+			for _, layout := range(supportedLayouts) {
+				var t time.Time
+				t, err = time.Parse(layout, untilRaw)
+				if err == nil {
+					until = time.Until(t)
+					break
+				}
+			}
+		}
+
 		if err != nil {
 			return client.PruneInfo{}, errors.Wrapf(err, "%q filter expects a duration (e.g., '24h')", filterKey)
 		}
